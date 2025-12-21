@@ -1,0 +1,86 @@
+cabal-version:  1.12
+name:           quickhull
+version:        0.1.0.0
+author:         INFOB3CC lecturers
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+  README.md
+
+flag llvm-cpu
+  description: Generate parallel CPU code
+  manual: True
+  default: False
+
+flag llvm-ptx
+  description: Generate code for NVIDIA GPUs
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      Quickhull
+  hs-source-dirs: src
+  ghc-options: -Wall
+  build-depends:
+      accelerate
+    , base >=4.15 && <5
+    -- Depending also on the Native backend is helpful to be able to test things in ghci
+    , accelerate-llvm-native
+  default-language: Haskell2010
+
+executable quickhull
+  main-is: Main.hs
+  other-modules:
+      Config
+      Draw
+      Event
+      Parser
+      World
+  hs-source-dirs: app
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-n2M -with-rtsopts=-A64M
+  build-depends:
+      accelerate
+    , base >=4.15 && <5
+    , criterion
+    , gloss
+    , megaparsec
+    , mwc-random
+    , optparse-applicative
+    , quickhull
+    , text
+    , vector
+  default-language: Haskell2010
+  if flag(llvm-cpu)
+    cpp-options: -DACCELERATE_LLVM_NATIVE_BACKEND
+    build-depends:
+        accelerate-llvm-native
+  if flag(llvm-ptx)
+    cpp-options: -DACCELERATE_LLVM_PTX_BACKEND
+    build-depends:
+        accelerate-llvm-ptx
+
+executable quickhull-test
+  main-is: Main.hs
+  other-modules:
+      Test.Gen
+  hs-source-dirs: test
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-n2M -with-rtsopts=-A64M
+  build-depends:
+      accelerate
+    , base >=4.7 && <5
+    , containers
+    , hedgehog
+    , quickhull
+    , tasty
+    , tasty-hedgehog
+  default-language: Haskell2010
+  if flag(llvm-cpu)
+    cpp-options: -DACCELERATE_LLVM_NATIVE_BACKEND
+    build-depends:
+        accelerate-llvm-native
+  if flag(llvm-ptx)
+    cpp-options: -DACCELERATE_LLVM_PTX_BACKEND
+    build-depends:
+        accelerate-llvm-ptx

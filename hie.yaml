@@ -1,0 +1,9 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:quickhull"
+    - path: "./app"
+      component: "exe:quickhull"
+    - path: "./test"
+      component: "test:quickhull-test"
+
