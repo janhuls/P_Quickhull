@@ -62,6 +62,7 @@ initialPartition points =
       p1, p2 :: Exp Point
       p1 = error "TODO: locate the left-most point"
       p2 = error "TODO: locate the right-most point"
+      -- p1 most upper rightmost point, p2 most lower leftmost point ???
 
       isUpper :: Acc (Vector Bool)
       isUpper = error "TODO: determine which points lie above the line (p₁, p₂)"
@@ -140,7 +141,21 @@ propagateR = error "TODO: propagateR"
 -- should be:
 -- Vector (Z :. 6) [False,False,True,False,True,True]
 shiftHeadFlagsL :: Acc (Vector Bool) -> Acc (Vector Bool)
-shiftHeadFlagsL = error "TODO: shiftHeadFlagsL"
+shiftHeadFlagsL xs =
+  let
+    sh = shape xs
+    n  = unindex1 sh
+  in
+  backpermute sh
+    (\ix ->
+       let Z :. i = unlift ix
+       in
+       i < n - 1
+         ? ( index1 (i + 1)
+           , index1 i
+           )
+    )
+    xs
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> run $ shiftHeadFlagsR (use (fromList (Z :. 6) [True,False,False,True,False,False]))
@@ -148,7 +163,21 @@ shiftHeadFlagsL = error "TODO: shiftHeadFlagsL"
 -- should be:
 -- Vector (Z :. 6) [True,True,False,False,True,False]
 shiftHeadFlagsR :: Acc (Vector Bool) -> Acc (Vector Bool)
-shiftHeadFlagsR = error "TODO: shiftHeadFlagsR"
+shiftHeadFlagsR xs =
+  let
+    sh = shape xs
+    n  = unindex1 sh
+  in
+  backpermute sh
+    (\ix ->
+       let Z :. i = unlift ix
+       in
+       i > 0
+         ? ( index1 (i - 1)
+           , index1 i
+           )
+    )
+    xs
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> let flags  = fromList (Z :. 9) [True,False,False,True,True,False,False,False,True]
