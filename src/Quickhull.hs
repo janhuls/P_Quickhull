@@ -123,7 +123,7 @@ quickhull =
 -- should be:
 -- Vector (Z :. 9) [1,1,1,4,5,5,5,5,9]
 propagateL :: Elt a => Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
-propagateL = error "TODO: propagateL"
+propagateL = segmentedScanl1 (\a _ -> a)
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> let flags  = fromList (Z :. 9) [True,False,False,True,True,False,False,False,True]
@@ -133,7 +133,7 @@ propagateL = error "TODO: propagateL"
 -- should be:
 -- Vector (Z :. 9) [1,4,4,4,5,9,9,9,9]
 propagateR :: Elt a => Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
-propagateR = error "TODO: propagateR"
+propagateR = segmentedScanr1 (\_ b -> b)
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> run $ shiftHeadFlagsL (use (fromList (Z :. 6) [False,False,False,True,False,True]))
@@ -141,21 +141,11 @@ propagateR = error "TODO: propagateR"
 -- should be:
 -- Vector (Z :. 6) [False,False,True,False,True,True]
 shiftHeadFlagsL :: Acc (Vector Bool) -> Acc (Vector Bool)
-shiftHeadFlagsL xs =
-  let
-    sh = shape xs
-    n  = unindex1 sh
-  in
-  backpermute sh
-    (\ix ->
-       let Z :. i = unlift ix
-       in
-       i < n - 1
-         ? ( index1 (i + 1)
-           , index1 i
-           )
-    )
-    xs
+shiftHeadFlagsL =
+  stencil stencilf clamp where
+    stencilf :: Stencil3 Bool -> Exp Bool
+    stencilf (_, _, b) = b
+
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> run $ shiftHeadFlagsR (use (fromList (Z :. 6) [True,False,False,True,False,False]))
@@ -163,21 +153,10 @@ shiftHeadFlagsL xs =
 -- should be:
 -- Vector (Z :. 6) [True,True,False,False,True,False]
 shiftHeadFlagsR :: Acc (Vector Bool) -> Acc (Vector Bool)
-shiftHeadFlagsR xs =
-  let
-    sh = shape xs
-    n  = unindex1 sh
-  in
-  backpermute sh
-    (\ix ->
-       let Z :. i = unlift ix
-       in
-       i > 0
-         ? ( index1 (i - 1)
-           , index1 i
-           )
-    )
-    xs
+shiftHeadFlagsR =
+  stencil stencilf clamp where
+    stencilf :: Stencil3 Bool -> Exp Bool
+    stencilf (b, _, _) = b
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> let flags  = fromList (Z :. 9) [True,False,False,True,True,False,False,False,True]
