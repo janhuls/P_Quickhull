@@ -64,7 +64,7 @@ initialPartition points =
       p2 = the $ fold rightMostPoint (T2 minBound minBound) points
 
       leftMostPoint :: Exp Point -> Exp Point -> Exp Point
-      leftMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2) = if x1 < x2 then q1 else 
+      leftMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2)  = if x1 < x2 then q1 else 
                                                     if x1 == x2 then 
                                                       if y1 < y2 then q1 else q2
                                                     else q2
@@ -73,30 +73,59 @@ initialPartition points =
                                                       if y1 > y2 then q1 else q2
                                                     else q2
 
-      initLine = T2 p1 p2
-
       isUpper :: Acc (Vector Bool)
-      isUpper = map (pointIsLeftOfLine initLine) points
+      isUpper = map (\p -> p /= p1 && p /= p2 && pointIsLeftOfLine (T2 p1 p2) p) points
 
       isLower :: Acc (Vector Bool)
-      isLower = map (not . pointIsLeftOfLine initLine) points
+      isLower = map (\p -> p /= p1 && p /= p2 && pointIsLeftOfLine (T2 p2 p1) p) points
 
       offsetUpper :: Acc (Vector Int)
       countUpper  :: Acc (Scalar Int)
-      T2 offsetUpper countUpper = error "TODO: number of points above the line and their relative index"
+      T2 offsetUpper countUpper = T2 locations totalCount where
+        isUpperInt = map makeInt isUpper
+        locations :: Acc (Vector Int)
+        locations = scanl (+) 0 isUpperInt
+        totalCount = unit $ locations ! (I1 $ length locations - 1)
 
       offsetLower :: Acc (Vector Int)
       countLower  :: Acc (Scalar Int)
-      T2 offsetLower countLower = error "TODO: number of points below the line and their relative index"
+      T2 offsetLower countLower = T2 locations totalCount where
+        isLowerInt = map makeInt isLower 
+        locations :: Acc (Vector Int)
+        locations = scanl (+) 0 isLowerInt
+        totalCount = unit $ locations ! (I1 $ length locations - 1)
 
       destination :: Acc (Vector (Maybe DIM1))
-      destination = error "TODO: compute the index in the result array for each point (if it is present)"
+      destination = generate (shape points) $ \idx ->
+        let 
+          point = points ! idx
+          isUpperPoint = isUpper ! idx
+          isLowerPoint = isLower ! idx
+          offSetUpperPoint = offsetUpper ! idx
+          offsetLowerPoint = offsetLower ! idx
+          uppers = the countUpper
+        in 
+          if point == p1 then 
+            Just_ $ I1 0 -- place p1 at the start
+          else if isUpperPoint then 
+            Just_ $ I1 $ 1 + offSetUpperPoint -- then place all the uppers
+          else if point == p2 then 
+            Just_ $ I1 $ uppers + 1 -- then place p2
+          else if isLowerPoint then 
+            Just_ $ I1 $ 2 + uppers + offsetLowerPoint -- then place all lowers
+          else Nothing_
+          
+      outShape = I1 $ 1 + the countUpper + 1 + the countLower + 1
 
       newPoints :: Acc (Vector Point)
-      newPoints = error "TODO: place each point into its corresponding segment of the result"
+      newPoints = generate outShape $ \(I1 idx) -> if idx == the countUpper + the countLower + 2 then p1 else withoutLastP1 ! (I1 idx)where 
+        withoutLastP1 = permute const (generate (I1 (unindex1 outShape - 1)) $ \_ -> T2 0 0) (\idx -> destination ! idx) points
 
       headFlags :: Acc (Vector Bool)
-      headFlags = error "TODO: create head flags array demarcating the initial segments"
+      headFlags = generate outShape $ \(I1 idx) -> 
+        idx == 0 
+        || idx == the countUpper + 1 
+        || idx == the countUpper + the countLower + 2
   in
   T2 headFlags newPoints
 
@@ -198,6 +227,9 @@ segmentedScanl1 op hFlags vec = map snd $ scanl1 (segmented op) $ zip hFlags vec
 segmentedScanr1 :: Elt a => (Exp a -> Exp a -> Exp a) -> Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
 segmentedScanr1 op hFlags vec = map snd $ scanr1 (flip $ segmented op) $ zip hFlags vec
 
+
+makeInt :: Exp Bool -> Exp Int
+makeInt b = if b then 1 else 0
 
 -- Given utility functions
 -- -----------------------
