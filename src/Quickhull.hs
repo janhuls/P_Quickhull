@@ -60,15 +60,26 @@ initialPartition :: Acc (Vector Point) -> Acc SegmentedPoints
 initialPartition points =
   let
       p1, p2 :: Exp Point
-      p1 = error "TODO: locate the left-most point"
-      p2 = error "TODO: locate the right-most point"
-      -- p1 most upper rightmost point, p2 most lower leftmost point ???
+      p1 = the $ fold leftMostPoint (T2 maxBound maxBound) points
+      p2 = the $ fold rightMostPoint (T2 minBound minBound) points
+
+      leftMostPoint :: Exp Point -> Exp Point -> Exp Point
+      leftMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2) = if x1 < x2 then q1 else 
+                                                    if x1 == x2 then 
+                                                      if y1 < y2 then q1 else q2
+                                                    else q2
+      rightMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2) = if x1 > x2 then q1 else 
+                                                    if x1 == x2 then 
+                                                      if y1 > y2 then q1 else q2
+                                                    else q2
+
+      initLine = T2 p1 p2
 
       isUpper :: Acc (Vector Bool)
-      isUpper = error "TODO: determine which points lie above the line (p₁, p₂)"
+      isUpper = map (pointIsLeftOfLine initLine) points
 
       isLower :: Acc (Vector Bool)
-      isLower = error "TODO: determine which points lie below the line (p₁, p₂)"
+      isLower = map (not . pointIsLeftOfLine initLine) points
 
       offsetUpper :: Acc (Vector Int)
       countUpper  :: Acc (Scalar Int)
@@ -133,7 +144,7 @@ propagateL = segmentedScanl1 (\a _ -> a)
 -- should be:
 -- Vector (Z :. 9) [1,4,4,4,5,9,9,9,9]
 propagateR :: Elt a => Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
-propagateR = segmentedScanr1 (\_ b -> b)
+propagateR = segmentedScanr1 (\b _ -> b)
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> run $ shiftHeadFlagsL (use (fromList (Z :. 6) [False,False,False,True,False,True]))
@@ -142,10 +153,13 @@ propagateR = segmentedScanr1 (\_ b -> b)
 -- Vector (Z :. 6) [False,False,True,False,True,True]
 shiftHeadFlagsL :: Acc (Vector Bool) -> Acc (Vector Bool)
 shiftHeadFlagsL =
-  stencil stencilf clamp where
+  stencil stencilf stencilBoundary where
     stencilf :: Stencil3 Bool -> Exp Bool
     stencilf (_, _, b) = b
 
+
+stencilBoundary :: Boundary (Vector Bool)
+stencilBoundary = function $ const True_
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> run $ shiftHeadFlagsR (use (fromList (Z :. 6) [True,False,False,True,False,False]))
@@ -154,7 +168,7 @@ shiftHeadFlagsL =
 -- Vector (Z :. 6) [True,True,False,False,True,False]
 shiftHeadFlagsR :: Acc (Vector Bool) -> Acc (Vector Bool)
 shiftHeadFlagsR =
-  stencil stencilf clamp where
+  stencil stencilf stencilBoundary where
     stencilf :: Stencil3 Bool -> Exp Bool
     stencilf (b, _, _) = b
 
@@ -171,7 +185,7 @@ shiftHeadFlagsR =
 -- non-associative combination functions may seem to work fine here -- only to
 -- fail spectacularly when testing with a parallel backend on larger inputs. ;)
 segmentedScanl1 :: Elt a => (Exp a -> Exp a -> Exp a) -> Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
-segmentedScanl1 = error "TODO: segmentedScanl1"
+segmentedScanl1 op hFlags vec = map snd $ scanl1 (segmented op) $ zip hFlags vec
 
 -- >>> import Data.Array.Accelerate.Interpreter
 -- >>> let flags  = fromList (Z :. 9) [True,False,False,True,True,False,False,False,True]
@@ -182,7 +196,7 @@ segmentedScanl1 = error "TODO: segmentedScanl1"
 -- >>> fromList (Z :. 9) [1, 2+3+4, 3+4, 4, 5, 6+7+8+9, 7+8+9, 8+9, 9] :: Vector Int
 -- Vector (Z :. 9) [1,9,7,4,5,30,24,17,9]
 segmentedScanr1 :: Elt a => (Exp a -> Exp a -> Exp a) -> Acc (Vector Bool) -> Acc (Vector a) -> Acc (Vector a)
-segmentedScanr1 = error "TODO: segmentedScanr1"
+segmentedScanr1 op hFlags vec = map snd $ scanr1 (flip $ segmented op) $ zip hFlags vec
 
 
 -- Given utility functions
