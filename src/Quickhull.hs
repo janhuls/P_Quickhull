@@ -283,7 +283,7 @@ quickhull points =
           const
           (generate (I1 $ the total) (const $ T2 0 0))
           (\i -> if finalFlags ! i then Just_ (I1 (offsets ! i)) else Nothing_)
-          finalFlags
+          finalPoints
 
       outShape = I1 (the total - 1) -- drop duplicated p1, appended from initpartition
    in generate outShape $ \(I1 idx) -> compacted ! (I1 idx)
