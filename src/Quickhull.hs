@@ -140,8 +140,51 @@ initialPartition points =
 -- These points are undecided.
 --
 partition :: Acc SegmentedPoints -> Acc SegmentedPoints
-partition (T2 headFlags points) =
-  error "TODO: partition"
+partition (T2 headFlags points) = let 
+    p1s = propagateL headFlags points
+    p2s = propagateR headFlags points
+
+    distPoints = zipWith3 (\h p line ->
+      if h
+      then T2 (-1) p
+      else T2 (abs (nonNormalizedDistance line p)) p) headFlags points (zip p1s p2s)
+
+    maxByDist :: Exp (Int, Point) -> Exp (Int, Point) -> Exp (Int, Point)
+    maxByDist (T2 d1 p1) (T2 d2 p2) =
+          d1 > d2 ? ( T2 d1 p1
+        , d2 > d1 ? ( T2 d2 p2
+        , T2 d1 (min p1 p2) ))
+    
+    bestPairs = propagateL headFlags $ segmentedScanl1 maxByDist headFlags distPoints
+
+    isFurthest = zipWith3 (\h p (T2 _ bestPoint) -> not h && p == bestPoint) headFlags points bestPairs
+
+    newHeadFlags = zipWith (||) headFlags isFurthest -- new head flags are old headflags or the furthest points
+
+    p3s = propagateL newHeadFlags points
+
+    leftOfP1P3 = zipWith3 (\h p line  -> -- like isUpper in initialPartition
+      not h && pointIsLeftOfLine line p) newHeadFlags points (zip p1s p3s)
+
+
+    leftOfP3P2 = zipWith3 (\h p line -> -- like isLower in initialPartition
+      not h && pointIsLeftOfLine line p) newHeadFlags points (zip p3s p2s)
+
+    keep = zipWith3 (\h l r -> h || l || r) newHeadFlags leftOfP1P3 leftOfP3P2 -- only keep heads points left of line and points right of line
+ 
+    offsets = scanl (+) 0 (map makeInt keep)
+    newSize = unit (offsets ! (I1 $ length offsets - 1))
+
+    newPoints = permute const (generate (I1 $ the newSize) (const $ T2 0 0)) 
+      (\i -> if keep ! i then Just_ (I1 (offsets ! i)) else Nothing_)
+      points
+
+    newHeadFlags' = permute const (generate (I1 (the newSize)) (const False_))
+      (\i -> if keep ! i then Just_ (I1 (offsets ! i)) else Nothing_)
+      newHeadFlags
+
+  in 
+    T2 newHeadFlags' newPoints
 
 
 -- The completed algorithm repeatedly partitions the points until there are
