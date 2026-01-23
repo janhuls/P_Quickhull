@@ -29,7 +29,6 @@ import qualified Prelude as P
 -- Points and lines in two-dimensional space
 --
 type Point = (Int, Int)
-
 type Line = (Point, Point)
 
 -- This algorithm will use a head-flags array to distinguish the different
@@ -61,11 +60,11 @@ type SegmentedPoints = (Vector Bool, Vector Point)
 initialPartition :: Acc (Vector Point) -> Acc SegmentedPoints
 initialPartition points =
   let p1, p2 :: Exp Point
-      p1 = the $ fold leftMostPoint (T2 maxBound maxBound) points
-      p2 = the $ fold rightMostPoint (T2 minBound minBound) points
+      p1 = the $ fold leftmost (T2 maxBound maxBound) points
+      p2 = the $ fold rightmost (T2 minBound minBound) points
 
-      leftMostPoint :: Exp Point -> Exp Point -> Exp Point
-      leftMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2) =
+      leftmost :: Exp Point -> Exp Point -> Exp Point --leftmost point, rightmost point after
+      leftmost q1@(T2 x1 y1) q2@(T2 x2 y2) =
         if x1 < x2
           then q1
           else
@@ -73,7 +72,7 @@ initialPartition points =
               then if y1 < y2 then q1 else q2
               else q2
 
-      rightMostPoint q1@(T2 x1 y1) q2@(T2 x2 y2) =
+      rightmost q1@(T2 x1 y1) q2@(T2 x2 y2) =
         if x1 > x2
           then q1
           else
@@ -82,10 +81,10 @@ initialPartition points =
               else q2
 
       isUpper :: Acc (Vector Bool)
-      isUpper = map (\p -> p /= p1 && p /= p2 && pointIsLeftOfLine (T2 p1 p2) p) points
+      isUpper = map (\p -> p /= p1 && p /= p2 && pointleftline (T2 p1 p2) p) points
 
       isLower :: Acc (Vector Bool)
-      isLower = map (\p -> p /= p1 && p /= p2 && pointIsLeftOfLine (T2 p2 p1) p) points
+      isLower = map (\p -> p /= p1 && p /= p2 && pointleftline (T2 p2 p1) p) points
 
       offsetUpper :: Acc (Vector Int)
       countUpper :: Acc (Scalar Int)
@@ -94,58 +93,56 @@ initialPartition points =
           isUpperInt = map makeInt isUpper
           locations :: Acc (Vector Int)
           locations = scanl (+) 0 isUpperInt
-          -- use fold to compute the total number of uppers (safe + clear)
-          totalCount = fold (+) 0 isUpperInt
+          totalCount = fold (+) 0 isUpperInt -- fold to get total number uppers
 
       offsetLower :: Acc (Vector Int)
       countLower :: Acc (Scalar Int)
-      T2 offsetLower countLower = T2 locations totalCount
+      T2 offsetLower countLower = T2 locations totalcount
         where
-          isLowerInt = map makeInt isLower
+          islowerint = map makeInt isLower
           locations :: Acc (Vector Int)
-          locations = scanl (+) 0 isLowerInt
-          -- use fold to compute the total number of lowers
-          totalCount = fold (+) 0 isLowerInt
+          locations = scanl (+) 0 islowerint
+          totalcount = fold (+) 0 islowerint -- same for lower c:
 
       destination :: Acc (Vector (Maybe DIM1))
-      destination = generate (shape points) $ \idx ->
-        let point = points ! idx
-            isUpperPoint = isUpper ! idx
-            isLowerPoint = isLower ! idx
-            offSetUpperPoint = offsetUpper ! idx
-            offsetLowerPoint = offsetLower ! idx
+      destination = generate (shape points) $ \thing ->
+        let point = points ! thing
+            isUpperpoint = isUpper ! thing
+            isLowerpoint = isLower ! thing
+            offsetUpperpoint = offsetUpper ! thing
+            offsetLowerpoint = offsetLower ! thing
             uppers = the countUpper
          in if point == p1
-              then Just_ $ I1 0 -- place p1 at the start
+              then Just_ $ I1 0 --p1 start
               else
-                if isUpperPoint
-                  then Just_ $ I1 $ 1 + offSetUpperPoint -- then place all the uppers
+                if isUpperpoint
+                  then Just_ $ I1 $ 1 + offsetUpperpoint --then uppers
                   else
                     if point == p2
-                      then Just_ $ I1 $ uppers + 1 -- then place p2
+                      then Just_ $ I1 $ uppers + 1 --p2
                       else
-                        if isLowerPoint
-                          then Just_ $ I1 $ 2 + uppers + offsetLowerPoint -- then place all lowers
+                        if isLowerpoint
+                          then Just_ $ I1 $ 2 + uppers + offsetLowerpoint --then lowers
                           else Nothing_
 
       outShape = I1 $ 1 + the countUpper + 1 + the countLower + 1
 
       newPoints :: Acc (Vector Point)
-      newPoints = generate outShape $ \(I1 idx) ->
-        if idx == the countUpper + the countLower + 2
+      newPoints = generate outShape $ \(I1 thing) ->
+        if thing == the countUpper + the countLower + 2
           then p1
-          else withoutLastP1 ! (I1 idx)
+          else withoutLastP1 ! (I1 thing)
         where
           withoutLastP1 =
             permute
               const
               (generate (I1 (unindex1 outShape - 1)) $ \_ -> T2 0 0)
-              (\idx -> destination ! idx)
+              (\thing -> destination ! thing)
               points
 
       headFlags :: Acc (Vector Bool)
-      headFlags = generate outShape $ \(I1 idx) ->
-        idx == 0 || idx == the countUpper + 1 || idx == the countUpper + the countLower + 2
+      headFlags = generate outShape $ \(I1 thing) ->
+        thing == 0 || thing == the countUpper + 1 || thing == the countUpper + the countLower + 2
    in T2 headFlags newPoints
 
 -- The core of the algorithm processes all line segments at once in
@@ -192,7 +189,7 @@ partition (T2 headFlags points) =
           else
             if d2 > d1
               then T2 d2 p2
-              else -- tie = use max
+              else -- tie=use max
                 if x2 > x1
                   then T2 d1 p2
                   else
@@ -205,8 +202,7 @@ partition (T2 headFlags points) =
 
       bestPairs = segmentedScanl1 maxByDist headFlags distPoints
 
-      -- furthest = newhead
-      isFurthest =
+      isFurthest = -- furthest=newhead
         zipWith3
           (\h p (T2 _ bestPoint) -> not h && p == bestPoint)
           headFlags
@@ -220,8 +216,7 @@ partition (T2 headFlags points) =
       leftOfP1P3 =
         zipWith3
           ( \h p line ->
-              not h && pointIsLeftOfLine line p
-          )
+          not h && pointleftline line p)
           newHeadFlags
           points
           (zip p1s p3s)
@@ -229,8 +224,7 @@ partition (T2 headFlags points) =
       leftOfP3P2 =
         zipWith3
           ( \h p line ->
-              not h && pointIsLeftOfLine line p
-          )
+          not h && pointleftline line p)
           newHeadFlags
           points
           (zip p3s p2s)
@@ -285,8 +279,8 @@ quickhull points =
           (\i -> if finalFlags ! i then Just_ (I1 (offsets ! i)) else Nothing_)
           finalPoints
 
-      outShape = I1 (the total - 1) -- drop duplicated p1, appended from initpartition
-   in generate outShape $ \(I1 idx) -> compacted ! (I1 idx)
+      outShape = I1 (the total - 1) -- drop duplicated p1,, appended from initpartition
+   in generate outShape $ \(I1 thing) -> compacted ! (I1 thing)
 
 -- Helper functions
 -- ----------------
@@ -327,8 +321,8 @@ makeInt b = if b then 1 else 0
 -- Given utility functions
 -- -----------------------
 
-pointIsLeftOfLine :: Exp Line -> Exp Point -> Exp Bool
-pointIsLeftOfLine (T2 (T2 x1 y1) (T2 x2 y2)) (T2 x y) = nx * x + ny * y > c
+pointleftline :: Exp Line -> Exp Point -> Exp Bool
+pointleftline (T2 (T2 x1 y1) (T2 x2 y2)) (T2 x y) = nx * x + ny * y > c
   where
     nx = y1 - y2
     ny = x2 - x1
