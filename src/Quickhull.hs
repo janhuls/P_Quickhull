@@ -170,7 +170,7 @@ partition (T2 headFlags points) =
       p2s = generate (shape points) $ \(I1 i) ->
         points ! I1 (nextHeadIndices ! I1 i)
 
-      distPoints =
+      distpoints =
         zipWith4
           ( \h p p1 p2 ->
               if h || p == p1 || p == p2
@@ -182,8 +182,8 @@ partition (T2 headFlags points) =
           p1s
           p2s
 
-      maxByDist :: Exp (Int, Point) -> Exp (Int, Point) -> Exp (Int, Point)
-      maxByDist (T2 d1 p1@(T2 x1 y1)) (T2 d2 p2@(T2 x2 y2)) =
+      maxbydist :: Exp (Int, Point) -> Exp (Int, Point) -> Exp (Int, Point)
+      maxbydist (T2 d1 p1@(T2 x1 y1)) (T2 d2 p2@(T2 x2 y2)) =
         if d1 > d2
           then T2 d1 p1
           else
@@ -200,7 +200,7 @@ partition (T2 headFlags points) =
                           then T2 d1 p2
                           else T2 d1 p1
 
-      bestPairs = segmentedScanl1 maxByDist headFlags distPoints
+      bestPairs = segmentedScanl1 maxbydist headFlags distpoints
 
       isFurthest = -- furthest=newhead
         zipWith3
@@ -213,7 +213,7 @@ partition (T2 headFlags points) =
 
       p3s = propagateL newHeadFlags points --p3 val
 
-      leftOfP1P3 =
+      leftofP1P3 =
         zipWith3
           ( \h p line ->
           not h && pointleftline line p)
@@ -221,7 +221,7 @@ partition (T2 headFlags points) =
           points
           (zip p1s p3s)
 
-      leftOfP3P2 =
+      leftofP3P2 =
         zipWith3
           ( \h p line ->
           not h && pointleftline line p)
@@ -229,7 +229,7 @@ partition (T2 headFlags points) =
           points
           (zip p3s p2s)
 
-      keep = zipWith3 (\h l r -> h || l || r) newHeadFlags leftOfP1P3 leftOfP3P2
+      keep = zipWith3 (\h l r -> h || l || r) newHeadFlags leftofP1P3 leftofP3P2
 
       offsets = scanl (+) 0 (map makeInt keep) --new indices
       newSize = fold (+) 0 (map makeInt keep)
@@ -279,7 +279,7 @@ quickhull points =
           (\i -> if finalFlags ! i then Just_ (I1 (offsets ! i)) else Nothing_)
           finalPoints
 
-      outShape = I1 (the total - 1) -- drop duplicated p1,, appended from initpartition
+      outShape = I1 (the total - 1) -- drop duplicated p1,, appended from initpartition mi bomboclat
    in generate outShape $ \(I1 thing) -> compacted ! (I1 thing)
 
 -- Helper functions
